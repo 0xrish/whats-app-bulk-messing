@@ -1,0 +1,127 @@
+{
+  "title": "WhatsApp Bulk Messaging Actor",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "masterApiKey": {
+      "title": "Master API Key",
+      "type": "string",
+      "description": "The master API key for authentication. Must match the MASTER_API_KEY environment variable.",
+      "editor": "textfield"
+    },
+    "sessionId": {
+      "title": "Session ID",
+      "type": "string",
+      "description": "Unique identifier for the WhatsApp session. Defaults to 'default-session' if not provided.",
+      "default": "default-session",
+      "editor": "textfield"
+    },
+    "action": {
+      "title": "Action",
+      "type": "string",
+      "description": "The action to perform: 'connect' (generate QR code), 'send' (send single message), or 'sendBulk' (send multiple messages).",
+      "enum": ["connect", "send", "sendBulk"],
+      "default": "sendBulk",
+      "editor": "select"
+    },
+    "to": {
+      "title": "Recipient Phone Number",
+      "type": "string",
+      "description": "Recipient's phone number (e.g., '1234567890' or '+1234567890'). Required for 'send' action.",
+      "editor": "textfield"
+    },
+    "message": {
+      "title": "Message Text",
+      "type": "string",
+      "description": "Text message to send. Required for 'send' action (unless attachment is provided).",
+      "editor": "textarea"
+    },
+    "attachment": {
+      "title": "Attachment",
+      "type": "string",
+      "description": "URL to file, local file path, or Base64 encoded string. Optional for 'send' action.",
+      "editor": "textfield"
+    },
+    "attachmentType": {
+      "title": "Attachment MIME Type",
+      "type": "string",
+      "description": "MIME type of the attachment (required if attachment is Base64, e.g., 'image/png', 'application/pdf').",
+      "editor": "textfield"
+    },
+    "caption": {
+      "title": "Caption",
+      "type": "string",
+      "description": "Caption for attachment messages.",
+      "editor": "textfield"
+    },
+    "messages": {
+      "title": "Bulk Messages",
+      "type": "array",
+      "description": "Array of messages to send for 'sendBulk' action. Each message can have its own delay.",
+      "editor": "json",
+      "default": [],
+      "items": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "title": "Recipient Phone Number",
+            "type": "string",
+            "description": "Recipient's phone number",
+            "editor": "textfield"
+          },
+          "message": {
+            "title": "Message Text",
+            "type": "string",
+            "description": "Text message to send",
+            "editor": "textarea"
+          },
+          "attachment": {
+            "title": "Attachment",
+            "type": "string",
+            "description": "URL to file or Base64 encoded string",
+            "editor": "textfield"
+          },
+          "attachmentType": {
+            "title": "Attachment MIME Type",
+            "type": "string",
+            "description": "MIME type (required for Base64 attachments)",
+            "editor": "textfield"
+          },
+          "caption": {
+            "title": "Caption",
+            "type": "string",
+            "description": "Caption for attachment",
+            "editor": "textfield"
+          },
+          "delay": {
+            "title": "Delay Before This Message (ms)",
+            "type": "integer",
+            "description": "Custom delay in milliseconds before sending this message. Overrides delayBetweenMessages if set.",
+            "minimum": 0,
+            "default": null,
+            "editor": "number"
+          }
+        },
+        "required": ["to"]
+      }
+    },
+    "delayBetweenMessages": {
+      "title": "Delay Between Messages (ms)",
+      "type": "integer",
+      "description": "Delay in milliseconds between each message when sending bulk messages. Helps avoid account banning. Default: 2000ms (2 seconds).",
+      "minimum": 0,
+      "default": 2000,
+      "editor": "number"
+    },
+    "waitForConnectionTimeout": {
+      "title": "Connection Timeout (ms)",
+      "type": "integer",
+      "description": "Maximum time to wait for WhatsApp connection in milliseconds. Default: 60000ms (60 seconds).",
+      "minimum": 1000,
+      "default": 60000,
+      "editor": "number"
+    }
+  },
+  "required": ["masterApiKey", "action"]
+}
+

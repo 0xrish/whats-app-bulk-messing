@@ -1,0 +1,100 @@
+{
+  "title": "WhatsApp Bulk Messaging Actor Output",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "success": {
+      "title": "Success",
+      "type": "boolean",
+      "description": "Whether the operation was successful"
+    },
+    "sessionId": {
+      "title": "Session ID",
+      "type": "string",
+      "description": "The WhatsApp session identifier used"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string",
+      "description": "Current status of the session (e.g., 'Connected', 'QR Code Generated', 'Initializing')"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string",
+      "description": "Human-readable message about the operation result"
+    },
+    "to": {
+      "title": "Recipient",
+      "type": "string",
+      "description": "Recipient phone number (for single message sends)"
+    },
+    "type": {
+      "title": "Message Type",
+      "type": "string",
+      "description": "Type of message sent ('text' or 'attachment')",
+      "enum": ["text", "attachment"]
+    },
+    "action": {
+      "title": "Action",
+      "type": "string",
+      "description": "The action that was performed",
+      "enum": ["connect", "send", "sendBulk"]
+    },
+    "total": {
+      "title": "Total Messages",
+      "type": "integer",
+      "description": "Total number of messages in bulk send operation"
+    },
+    "successful": {
+      "title": "Successful Messages",
+      "type": "integer",
+      "description": "Number of successfully sent messages"
+    },
+    "failed": {
+      "title": "Failed Messages",
+      "type": "integer",
+      "description": "Number of failed messages"
+    },
+    "results": {
+      "title": "Results",
+      "type": "array",
+      "description": "Detailed results for each message in bulk send operation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Message index (1-based)"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether this message was sent successfully"
+          },
+          "to": {
+            "type": "string",
+            "description": "Recipient phone number"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["text", "attachment"],
+            "description": "Message type"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if sending failed"
+          }
+        }
+      }
+    },
+    "qrCodeSaved": {
+      "title": "QR Code Saved",
+      "type": "boolean",
+      "description": "Whether a QR code was generated and saved to key-value store"
+    }
+  }
+}
+

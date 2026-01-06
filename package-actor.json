@@ -1,0 +1,16 @@
+{
+  "name": "whatsapp-bulk-messaging",
+  "version": "1.0.0",
+  "description": "Easy-to-use Apify actor for sending bulk WhatsApp messages with configurable delays",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "apify": "^3.0.0",
+    "whatsapp-web.js": "^1.34.1",
+    "qrcode": "^1.5.4"
+  }
+}
+
