@@ -5,10 +5,6 @@
   "title": "WhatsApp Bulk Messaging Actor",
   "description": "Easy-to-use Apify actor for sending bulk WhatsApp messages with configurable delays to avoid account banning. Supports text messages and attachments.",
   "readme": "# WhatsApp Bulk Messaging Actor\n\nThis Apify actor allows you to send bulk WhatsApp messages with configurable delays to avoid account banning.\n\n## Features\n\n- Send single or bulk WhatsApp messages\n- Configurable delays between messages\n- Support for text messages and attachments\n- Easy to use with simple input schema\n- QR code generation for WhatsApp connection\n\n## Usage\n\n### 1. Connect to WhatsApp\n\nSet `action` to `connect` to generate a QR code:\n\n```json\n{\n  \"masterApiKey\": \"your-master-key\",\n  \"action\": \"connect\",\n  \"sessionId\": \"my-session\"\n}\n```\n\nScan the QR code from the actor's output to connect your WhatsApp account.\n\n### 2. Send Single Message\n\n```json\n{\n  \"masterApiKey\": \"your-master-key\",\n  \"action\": \"send\",\n  \"sessionId\": \"my-session\",\n  \"to\": \"1234567890\",\n  \"message\": \"Hello from Apify!\"\n}\n```\n\n### 3. Send Bulk Messages\n\n```json\n{\n  \"masterApiKey\": \"your-master-key\",\n  \"action\": \"sendBulk\",\n  \"sessionId\": \"my-session\",\n  \"delayBetweenMessages\": 3000,\n  \"messages\": [\n    {\n      \"to\": \"1234567890\",\n      \"message\": \"Message 1\"\n    },\n    {\n      \"to\": \"0987654321\",\n      \"message\": \"Message 2\",\n      \"delay\": 5000\n    }\n  ]\n}\n```\n\n## Environment Variables\n\n- `MASTER_API_KEY`: Required. Master API key for authentication.\n\n## Input Parameters\n\nSee input_schema.json in .actor folder for complete input schema documentation.",
-  "dockerfile": "./Dockerfile",
-  "storages": {
-    "dataset": "./storage/datasets/default",
-    "keyValueStore": "./storage/key_value_stores/default"
-  }
+  "dockerfile": "./Dockerfile"
 }
 
