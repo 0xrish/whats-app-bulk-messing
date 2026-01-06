@@ -30,11 +30,6 @@ const getSessionsDir = async () => {
     return path.join(process.cwd(), 'sessions');
 };
 
-// Ensure the sessions directory exists
-if (!fs.existsSync(SESSIONS_DIR)) {
-    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-}
-
 // In-memory store for WhatsApp clients and their statuses
 const sessions = new Map();
 
