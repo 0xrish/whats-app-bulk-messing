@@ -4,13 +4,14 @@ const qrcode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 
-const { utils: { log } } = Apify;
+// Use Apify logging - handle both v2 and v3 SDK
+const log = Apify.utils?.log || Apify.log || console;
 
 // Path to the sessions directory
 // Use Apify's storage directory or fallback to a local directory
-const getSessionsDir = () => {
+const getSessionsDir = async () => {
     try {
-        const env = Apify.getEnv();
+        const env = Apify.getEnv ? Apify.getEnv() : await Apify.getEnv();
         // Use storage directory if available, otherwise use current working directory
         if (env && env.defaultDatasetPath) {
             // Sessions should be stored in a persistent location
@@ -19,12 +20,15 @@ const getSessionsDir = () => {
             return path.join(storageDir, 'sessions');
         }
     } catch (e) {
-        log.warning('Could not get Apify environment, using fallback path', e);
+        if (log.warning) {
+            log.warning('Could not get Apify environment, using fallback path', e);
+        } else {
+            console.warn('Could not get Apify environment, using fallback path', e);
+        }
     }
     // Fallback: use current working directory or /tmp for sessions
     return path.join(process.cwd(), 'sessions');
 };
-const SESSIONS_DIR = getSessionsDir();
 
 // Ensure the sessions directory exists
 if (!fs.existsSync(SESSIONS_DIR)) {
@@ -35,17 +39,32 @@ if (!fs.existsSync(SESSIONS_DIR)) {
 const sessions = new Map();
 
 /**
+ * Checks if a session already exists (has been authenticated before)
+ * @param {string} sessionId - The session ID.
+ * @returns {boolean} True if session data exists.
+ */
+const sessionExists = (sessionId, sessionsDir) => {
+    const sessionDataPath = path.join(sessionsDir, `session-${sessionId}`);
+    return fs.existsSync(sessionDataPath) && fs.existsSync(path.join(sessionDataPath, '.wwebjs_auth'));
+};
+
+/**
  * Initializes or retrieves a WhatsApp client for a given session ID.
  * @param {string} sessionId - The unique identifier for the session.
+ * @param {string} sessionsDir - The sessions directory path.
  * @returns {Object} The session object with client and status.
  */
-const initializeClient = (sessionId) => {
+const initializeClient = (sessionId, sessionsDir) => {
     if (sessions.has(sessionId) && sessions.get(sessionId).client) {
         return sessions.get(sessionId);
     }
 
-    log.info(`Initializing WhatsApp client for session: ${sessionId}`);
-    const sessionDataPath = path.join(SESSIONS_DIR, `session-${sessionId}`);
+    if (log.info) {
+        log.info(`Initializing WhatsApp client for session: ${sessionId}`);
+    } else {
+        console.log(`Initializing WhatsApp client for session: ${sessionId}`);
+    }
+    const sessionDataPath = path.join(sessionsDir, `session-${sessionId}`);
 
     const client = new Client({
         authStrategy: new LocalAuth({ dataPath: sessionDataPath }),
@@ -72,24 +91,40 @@ const initializeClient = (sessionId) => {
     sessions.set(sessionId, session);
 
     client.on('qr', (qr) => {
-        log.info(`QR code received for session: ${sessionId}`);
+        if (log.info) {
+            log.info(`QR code received for session: ${sessionId}`);
+        } else {
+            console.log(`QR code received for session: ${sessionId}`);
+        }
         session.qrCode = qr;
         session.status = 'QR Code Generated';
     });
 
     client.on('ready', () => {
-        log.info(`WhatsApp client is ready for session: ${sessionId}`);
+        if (log.info) {
+            log.info(`WhatsApp client is ready for session: ${sessionId}. Session data saved!`);
+        } else {
+            console.log(`WhatsApp client is ready for session: ${sessionId}. Session data saved!`);
+        }
         session.qrCode = null;
         session.status = 'Connected';
     });
 
     client.on('authenticated', () => {
-        log.info(`Authentication successful for session: ${sessionId}`);
+        if (log.info) {
+            log.info(`Authentication successful for session: ${sessionId}. You can now use this sessionId for sending messages.`);
+        } else {
+            console.log(`Authentication successful for session: ${sessionId}. You can now use this sessionId for sending messages.`);
+        }
         session.status = 'Connected';
     });
 
     client.on('auth_failure', (msg) => {
-        log.error(`Authentication failure for session ${sessionId}:`, msg);
+        if (log.error) {
+            log.error(`Authentication failure for session ${sessionId}:`, msg);
+        } else {
+            console.error(`Authentication failure for session ${sessionId}:`, msg);
+        }
         session.status = 'Authentication Failure';
         // Clean up and remove the failed session
         if (fs.existsSync(sessionDataPath)) {
@@ -99,14 +134,29 @@ const initializeClient = (sessionId) => {
     });
 
     client.on('disconnected', (reason) => {
-        log.info(`Client for session ${sessionId} was logged out:`, reason);
+        if (log.info) {
+            log.info(`Client for session ${sessionId} was logged out:`, reason);
+        } else {
+            console.log(`Client for session ${sessionId} was logged out:`, reason);
+        }
         session.status = 'Disconnected';
-        client.destroy().catch(err => log.error(`Error destroying client for session ${sessionId}:`, err));
+        const errorHandler = (err) => {
+            if (log.error) {
+                log.error(`Error destroying client for session ${sessionId}:`, err);
+            } else {
+                console.error(`Error destroying client for session ${sessionId}:`, err);
+            }
+        };
+        client.destroy().catch(errorHandler);
         sessions.delete(sessionId);
     });
 
     client.initialize().catch(err => {
-        log.error(`Failed to initialize client for session ${sessionId}:`, err);
+        if (log.error) {
+            log.error(`Failed to initialize client for session ${sessionId}:`, err);
+        } else {
+            console.error(`Failed to initialize client for session ${sessionId}:`, err);
+        }
         sessions.delete(sessionId);
     });
 
@@ -117,18 +167,22 @@ const initializeClient = (sessionId) => {
  * Waits for a session to be connected.
  * @param {string} sessionId - The session ID.
  * @param {number} timeout - Maximum time to wait in milliseconds.
- * @returns {Promise<boolean>} True if connected, false if timeout.
+ * @returns {Promise<{connected: boolean, qrCode?: string, status?: string}>} Connection status.
  */
 const waitForConnection = async (sessionId, timeout = 60000) => {
     const startTime = Date.now();
     while (Date.now() - startTime < timeout) {
         const session = sessions.get(sessionId);
         if (session && session.status === 'Connected') {
-            return true;
+            return { connected: true };
+        }
+        if (session && session.qrCode) {
+            return { connected: false, qrCode: session.qrCode, status: session.status };
         }
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    return false;
+    const session = sessions.get(sessionId);
+    return { connected: false, status: session?.status || 'Not found' };
 };
 
 /**
@@ -144,7 +198,11 @@ const sendMessage = async (sessionId, to, message) => {
     }
     const chatId = `${to.replace(/[^0-9]/g, '')}@c.us`;
     await session.client.sendMessage(chatId, message);
-    log.info(`Message sent to ${to} from session ${sessionId}`);
+    if (log.info) {
+        log.info(`Message sent to ${to} from session ${sessionId}`);
+    } else {
+        console.log(`Message sent to ${to} from session ${sessionId}`);
+    }
 };
 
 /**
@@ -179,7 +237,11 @@ const sendAttachment = async (sessionId, to, file, caption, type) => {
 
     const chatId = `${to.replace(/[^0-9]/g, '')}@c.us`;
     await session.client.sendMessage(chatId, media, { caption });
-    log.info(`Attachment sent to ${to} from session ${sessionId}`);
+    if (log.info) {
+        log.info(`Attachment sent to ${to} from session ${sessionId}`);
+    } else {
+        console.log(`Attachment sent to ${to} from session ${sessionId}`);
+    }
 };
 
 /**
@@ -203,68 +265,154 @@ Apify.main(async () => {
 
     const {
         sessionId = 'default-session',
-        action,
+        action = 'sendBulk',
         messages = [],
         delayBetweenMessages = 2000, // Default 2 seconds delay
-        waitForConnectionTimeout = 60000, // 60 seconds
+        waitForConnectionTimeout = 120000, // 120 seconds for first-time connection
     } = input;
 
-    log.info('Starting WhatsApp API Actor', { sessionId, action, messageCount: messages.length });
+    if (log.info) {
+        log.info('Starting WhatsApp API Actor', { sessionId, action, messageCount: messages.length });
+    } else {
+        console.log('Starting WhatsApp API Actor', { sessionId, action, messageCount: messages.length });
+    }
+
+    // Get sessions directory
+    const SESSIONS_DIR = await getSessionsDir();
+    
+    // Ensure the sessions directory exists
+    if (!fs.existsSync(SESSIONS_DIR)) {
+        fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+    }
+
+    // Check if session already exists
+    const existingSession = sessionExists(sessionId, SESSIONS_DIR);
+    if (existingSession && (action === 'send' || action === 'sendBulk')) {
+        if (log.info) {
+            log.info(`Session ${sessionId} already exists. Using saved session data.`);
+        } else {
+            console.log(`Session ${sessionId} already exists. Using saved session data.`);
+        }
+    }
 
     // Initialize client
-    initializeClient(sessionId);
+    initializeClient(sessionId, SESSIONS_DIR);
 
     // Wait for connection if needed
     if (action === 'send' || action === 'sendBulk') {
-        log.info('Waiting for WhatsApp connection...');
-        const connected = await waitForConnection(sessionId, waitForConnectionTimeout);
-        if (!connected) {
-            const session = sessions.get(sessionId);
-            if (session && session.qrCode) {
-                // Generate QR code image
+        if (log.info) {
+            log.info('Waiting for WhatsApp connection...');
+        } else {
+            console.log('Waiting for WhatsApp connection...');
+        }
+        const connectionResult = await waitForConnection(sessionId, waitForConnectionTimeout);
+        if (!connectionResult.connected) {
+            if (connectionResult.qrCode) {
+                // Generate QR code image and save it
                 try {
-                    const qrImageBuffer = await qrcode.toBuffer(session.qrCode);
+                    const qrImageBuffer = await qrcode.toBuffer(connectionResult.qrCode);
                     const keyValueStore = await Apify.openKeyValueStore();
                     await keyValueStore.setValue('QR_CODE', qrImageBuffer, { contentType: 'image/png' });
-                    log.info('QR code saved to key-value store as QR_CODE');
+                    const qrText = connectionResult.qrCode;
+                    await keyValueStore.setValue('QR_CODE_TEXT', qrText);
+                    
+                    if (log.info) {
+                        log.info('QR code generated! Check the Key-Value Store for QR_CODE (image) and QR_CODE_TEXT (text).');
+                        log.info('Please scan the QR code to connect. After scanning, use the same sessionId for sending messages.');
+                    } else {
+                        console.log('QR code generated! Check the Key-Value Store for QR_CODE (image) and QR_CODE_TEXT (text).');
+                        console.log('Please scan the QR code to connect. After scanning, use the same sessionId for sending messages.');
+                    }
+                    
+                    // Also output QR code text in logs
+                    console.log('\n=== QR CODE TEXT (Scan this with WhatsApp) ===');
+                    console.log(qrText);
+                    console.log('==============================================\n');
                 } catch (err) {
-                    log.error('Failed to save QR code', err);
+                    if (log.error) {
+                        log.error('Failed to save QR code', err);
+                    } else {
+                        console.error('Failed to save QR code', err);
+                    }
                 }
-                throw new Error(`Session not connected. Please scan the QR code (saved as QR_CODE in key-value store). Current status: ${session.status}`);
+                throw new Error(`Session not connected. Please scan the QR code from Key-Value Store (QR_CODE) or logs above. After scanning, run again with the same sessionId: "${sessionId}". Current status: ${connectionResult.status}`);
             }
-            throw new Error(`Session not connected within timeout. Current status: ${session?.status || 'Not found'}`);
+            throw new Error(`Session not connected within timeout. Current status: ${connectionResult.status}. If this is your first time, use action: "connect" to generate a QR code.`);
         }
-        log.info('WhatsApp connected successfully!');
+        if (log.info) {
+            log.info('WhatsApp connected successfully! Session data saved. You can now use this sessionId for future runs.');
+        } else {
+            console.log('WhatsApp connected successfully! Session data saved. You can now use this sessionId for future runs.');
+        }
     }
 
     // Handle different actions
     if (action === 'connect') {
-        // Just initialize and return QR code if available
-        const session = sessions.get(sessionId);
-        await sleep(3000); // Wait a bit for QR code generation
-        
-        if (session && session.qrCode) {
-            try {
-                const qrImageBuffer = await qrcode.toBuffer(session.qrCode);
-                const keyValueStore = await Apify.openKeyValueStore();
-                await keyValueStore.setValue('QR_CODE', qrImageBuffer, { contentType: 'image/png' });
-                log.info('QR code generated and saved to key-value store. Please scan it to connect.');
-            } catch (err) {
-                log.error('Failed to save QR code', err);
-            }
-            await Apify.pushData({
-                success: true,
-                sessionId,
-                status: session.status,
-                message: 'QR code generated. Please scan the QR code to connect.',
-                qrCodeSaved: true
-            });
+        // Wait for QR code generation (up to 30 seconds)
+        if (log.info) {
+            log.info('Waiting for QR code generation...');
         } else {
+            console.log('Waiting for QR code generation...');
+        }
+        
+        let qrCodeReceived = false;
+        const maxWaitTime = 30000; // 30 seconds
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < maxWaitTime && !qrCodeReceived) {
+            const session = sessions.get(sessionId);
+            if (session && session.qrCode) {
+                qrCodeReceived = true;
+                try {
+                    const qrImageBuffer = await qrcode.toBuffer(session.qrCode);
+                    const keyValueStore = await Apify.openKeyValueStore();
+                    await keyValueStore.setValue('QR_CODE', qrImageBuffer, { contentType: 'image/png' });
+                    await keyValueStore.setValue('QR_CODE_TEXT', session.qrCode);
+                    
+                    if (log.info) {
+                        log.info('QR code generated and saved to Key-Value Store!');
+                        log.info(`Session ID: ${sessionId}`);
+                        log.info('Please scan the QR code to connect. After scanning, save this sessionId and use it for sending messages.');
+                    } else {
+                        console.log('QR code generated and saved to Key-Value Store!');
+                        console.log(`Session ID: ${sessionId}`);
+                        console.log('Please scan the QR code to connect. After scanning, save this sessionId and use it for sending messages.');
+                    }
+                    
+                    // Output QR code in logs
+                    console.log('\n=== QR CODE TEXT (Scan this with WhatsApp) ===');
+                    console.log(session.qrCode);
+                    console.log('==============================================');
+                    console.log(`\nIMPORTANT: Save this Session ID: "${sessionId}"`);
+                    console.log('After scanning the QR code, use this sessionId in future runs to send messages.\n');
+                    
+                    await Apify.pushData({
+                        success: true,
+                        sessionId,
+                        status: session.status,
+                        message: `QR code generated! Scan it to connect. Save this sessionId: "${sessionId}" for future use.`,
+                        qrCodeSaved: true,
+                        instructions: '1. Scan the QR code from Key-Value Store (QR_CODE) or logs above. 2. After scanning, use the same sessionId for sending messages.'
+                    });
+                } catch (err) {
+                    if (log.error) {
+                        log.error('Failed to save QR code', err);
+                    } else {
+                        console.error('Failed to save QR code', err);
+                    }
+                }
+                break;
+            }
+            await sleep(1000); // Wait 1 second before checking again
+        }
+        
+        if (!qrCodeReceived) {
+            const session = sessions.get(sessionId);
             await Apify.pushData({
-                success: true,
+                success: false,
                 sessionId,
                 status: session?.status || 'Initializing',
-                message: 'Session initialized. Waiting for QR code...'
+                message: 'QR code not generated yet. Please wait and check again, or the session may already be connected.'
             });
         }
     } else if (action === 'send') {
@@ -302,7 +450,11 @@ Apify.main(async () => {
             throw new Error('messages must be a non-empty array');
         }
 
-        log.info(`Sending ${messages.length} messages with ${delayBetweenMessages}ms delay between each`);
+        if (log.info) {
+            log.info(`Sending ${messages.length} messages with ${delayBetweenMessages}ms delay between each`);
+        } else {
+            console.log(`Sending ${messages.length} messages with ${delayBetweenMessages}ms delay between each`);
+        }
 
         const results = [];
         for (let i = 0; i < messages.length; i++) {
@@ -310,7 +462,11 @@ Apify.main(async () => {
             const { to, message, attachment, attachmentType, caption, delay } = msg;
 
             if (!to) {
-                log.warning(`Skipping message ${i + 1}: missing 'to' parameter`);
+                if (log.warning) {
+                    log.warning(`Skipping message ${i + 1}: missing 'to' parameter`);
+                } else {
+                    console.warn(`Skipping message ${i + 1}: missing 'to' parameter`);
+                }
                 results.push({
                     index: i + 1,
                     success: false,
@@ -347,11 +503,19 @@ Apify.main(async () => {
 
                 // Wait before sending next message (except for the last one)
                 if (i < messages.length - 1 && currentDelay > 0) {
-                    log.info(`Waiting ${currentDelay}ms before next message...`);
+                    if (log.info) {
+                        log.info(`Waiting ${currentDelay}ms before next message...`);
+                    } else {
+                        console.log(`Waiting ${currentDelay}ms before next message...`);
+                    }
                     await sleep(currentDelay);
                 }
             } catch (error) {
-                log.error(`Error sending message ${i + 1} to ${to}:`, error);
+                if (log.error) {
+                    log.error(`Error sending message ${i + 1} to ${to}:`, error);
+                } else {
+                    console.error(`Error sending message ${i + 1} to ${to}:`, error);
+                }
                 results.push({
                     index: i + 1,
                     success: false,
@@ -365,7 +529,11 @@ Apify.main(async () => {
         const successCount = results.filter(r => r.success).length;
         const failCount = results.filter(r => !r.success).length;
 
-        log.info(`Bulk send completed: ${successCount} successful, ${failCount} failed`);
+        if (log.info) {
+            log.info(`Bulk send completed: ${successCount} successful, ${failCount} failed`);
+        } else {
+            console.log(`Bulk send completed: ${successCount} successful, ${failCount} failed`);
+        }
 
         await Apify.pushData({
             success: true,
@@ -380,6 +548,10 @@ Apify.main(async () => {
         throw new Error(`Unknown action: ${action}. Supported actions: connect, send, sendBulk`);
     }
 
-    log.info('Actor execution completed successfully');
+    if (log.info) {
+        log.info('Actor execution completed successfully');
+    } else {
+        console.log('Actor execution completed successfully');
+    }
 });
 
