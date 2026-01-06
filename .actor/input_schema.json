@@ -7,7 +7,8 @@
       "title": "Master API Key",
       "type": "string",
       "description": "The master API key for authentication. Must match the MASTER_API_KEY environment variable.",
-      "editor": "textfield"
+      "editor": "textfield",
+      "isSecret": true
     },
     "sessionId": {
       "title": "Session ID",
@@ -21,6 +22,7 @@
       "type": "string",
       "description": "The action to perform: 'connect' (generate QR code), 'send' (send single message), or 'sendBulk' (send multiple messages).",
       "enum": ["connect", "send", "sendBulk"],
+      "enumTitles": ["Connect (QR Code)", "Send Single Message", "Send Bulk Messages"],
       "default": "sendBulk",
       "editor": "select"
     },
@@ -58,7 +60,7 @@
       "title": "Bulk Messages",
       "type": "array",
       "description": "Array of messages to send for 'sendBulk' action. Each message can have its own delay.",
-      "editor": "json",
+      "editor": "schemaBased",
       "default": [],
       "items": {
         "type": "object",
@@ -98,7 +100,7 @@
             "type": "integer",
             "description": "Custom delay in milliseconds before sending this message. Overrides delayBetweenMessages if set.",
             "minimum": 0,
-            "default": null,
+            "nullable": true,
             "editor": "number"
           }
         },
@@ -122,6 +124,5 @@
       "editor": "number"
     }
   },
-  "required": ["masterApiKey", "action"]
+  "required": ["masterApiKey"]
 }
-
